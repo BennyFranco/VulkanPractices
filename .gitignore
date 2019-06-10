@@ -413,3 +413,6 @@ healthchecksdb
 MigrationBackup/
 
 # End of https://www.gitignore.io/api/macos,windows,visualstudio,visualstudiocode
+
+# Custom 
+!VKTutorial/VKTutorial/models/chalet.obj
