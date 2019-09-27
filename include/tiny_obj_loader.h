@@ -2071,6 +2071,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   std::stringstream errss;
 
+#if !__NX__
   std::ifstream ifs(filename);
   if (!ifs) {
     errss << "Cannot open file [" << filename << "]" << std::endl;
@@ -2079,6 +2080,23 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     }
     return false;
   }
+#else
+ 
+  nn::Result openResult;
+  nn::fs::FileHandle handle;
+  openResult = nn::fs::OpenFile(&handle, filename, nn::fs::OpenMode_Read);
+  NN_ASSERT(openResult.IsSuccess());
+
+  int64_t fileSize = -1;
+  openResult = nn::fs::GetFileSize(&fileSize, handle);
+  NN_ASSERT(openResult.IsSuccess());
+
+  std::vector<char> buffer(fileSize);
+  nn::fs::ReadFile(handle, 0, buffer.data(), static_cast<size_t>(fileSize));
+  nn::fs::CloseFile(handle);
+
+  std::istringstream ifs(std::string(buffer.data()));
+#endif
 
   std::string baseDir = mtl_basedir ? mtl_basedir : "";
   if (!baseDir.empty()) {

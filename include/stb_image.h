@@ -532,6 +532,21 @@ STBIDEF int   stbi_zlib_decode_noheader_buffer(char *obuffer, int olen, const ch
 #include <string.h>
 #include <limits.h>
 
+#if __NX__
+#include <nn/nn_Assert.h>
+#include <nn/nn_Log.h>
+
+#include <nn/nn_Result.h>
+#include <nn/fs.h>
+#include <nn/os.h>
+#include <nn/init.h>
+#include <nn/vi.h>
+#include <nn/hid.h>
+#include <vector>
+#include <memory>
+#include <cstdlib>
+#endif
+
 #if !defined(STBI_NO_LINEAR) || !defined(STBI_NO_HDR)
 #include <math.h>  // ldexp, pow
 #endif
@@ -1191,41 +1206,62 @@ STBIDEF int stbi_convert_wchar_to_utf8(char *buffer, size_t bufferlen, const wch
 
 static FILE *stbi__fopen(char const *filename, char const *mode)
 {
-   FILE *f;
+	FILE *f;
 #if defined(_MSC_VER) && defined(STBI_WINDOWS_UTF8)
-   wchar_t wMode[64];
-   wchar_t wFilename[1024];
+	wchar_t wMode[64];
+	wchar_t wFilename[1024];
 	if (0 == MultiByteToWideChar(65001 /* UTF8 */, 0, filename, -1, wFilename, sizeof(wFilename)))
-      return 0;
-	
+		return 0;
+
 	if (0 == MultiByteToWideChar(65001 /* UTF8 */, 0, mode, -1, wMode, sizeof(wMode)))
-      return 0;
+		return 0;
 
 #if _MSC_VER >= 1400
 	if (0 != _wfopen_s(&f, wFilename, wMode))
 		f = 0;
 #else
-   f = _wfopen(wFilename, wMode);
+	f = _wfopen(wFilename, wMode);
 #endif
 
 #elif defined(_MSC_VER) && _MSC_VER >= 1400
-   if (0 != fopen_s(&f, filename, mode))
-      f=0;
+	if (0 != fopen_s(&f, filename, mode))
+		f = 0;
 #else
-   f = fopen(filename, mode);
+	f = fopen(filename, mode);
 #endif
-   return f;
+	return f;
 }
+
 
 
 STBIDEF stbi_uc *stbi_load(char const *filename, int *x, int *y, int *comp, int req_comp)
 {
+#ifdef __NX__
+	nn::Result openResult;
+	nn::fs::FileHandle handle;
+	openResult = nn::fs::OpenFile(&handle, filename, nn::fs::OpenMode_Read);
+	NN_ASSERT(openResult.IsSuccess());
+
+	int64_t fileSize = -1;
+	openResult = nn::fs::GetFileSize(&fileSize, handle);
+	NN_ASSERT(openResult.IsSuccess());
+
+	std::unique_ptr< size_t > pBuffer(new size_t[static_cast<size_t>(fileSize) / sizeof(size_t)]);
+	nn::fs::ReadFile(handle, 0, pBuffer.get(), static_cast<size_t>(fileSize));
+	nn::fs::CloseFile(handle);
+
+	unsigned char *result;
+	if (!pBuffer) return stbi__errpuc("can't fopen", "Unable to open file");
+	result = stbi_load_from_memory((stbi_uc *)pBuffer.get(), fileSize, x, y, comp, req_comp);
+	return result;
+#else
    FILE *f = stbi__fopen(filename, "rb");
    unsigned char *result;
    if (!f) return stbi__errpuc("can't fopen", "Unable to open file");
    result = stbi_load_from_file(f,x,y,comp,req_comp);
    fclose(f);
    return result;
+#endif
 }
 
 STBIDEF stbi_uc *stbi_load_from_file(FILE *f, int *x, int *y, int *comp, int req_comp)
